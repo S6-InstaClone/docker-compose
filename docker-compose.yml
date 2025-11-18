@@ -1,0 +1,100 @@
+
+services:
+  apiGateway:
+    image: ghcr.io/s6-instaclone/gateway:latest
+    container_name: apiGateway
+    ports:
+      - "5000:5000"
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: azurite
+    ports:
+      - "10000:10000" # Blob service
+      - "10001:10001" # Queue service
+      - "10002:10002" # Table service
+    environment:
+      - AZURITE_ACCOUNTS=devstoreaccount1:devstoreaccount1key
+    volumes:
+      - azurite_data:/data
+    command: "azurite-blob --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"   # AMQP for your apps
+      - "15672:15672" # Web UI
+    volumes:
+      - ./.containers/queue/data/:/var/lib/rabbitmq
+      - ./.containers/queue/log/:/var/log/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: Keycloak
+    command: start-dev
+    environment:
+      - KC_HEALTH_ENABLED=true
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    volumes:
+      - ./.containers/identity:/opt/keycloak/data
+    ports:
+      - "18080:8080"
+
+  accountService:
+    image: ghcr.io/s6-instaclone/accountservice:latest
+    container_name: accountService
+    depends_on:
+      - account-db
+    ports:
+      - "5005:5005"
+  account-db:
+    image: postgres:18
+    container_name: account-db
+    restart: always
+    environment:
+      POSTGRES_DB: accounts
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_PORT: 5405
+    volumes:
+      - ./.containers/account_db_data:/var/lib/postgresql/18/main
+    ports:
+      - "5405:5405"
+
+  postService:
+    image: ghcr.io/s6-instaclone/postservice:latest
+    container_name: postService
+    depends_on:
+      - post-db
+    ports:
+      - "5006:5006"
+    env_file:
+      - ./env/.auth.env
+  post-db:
+    image: postgres:18
+    container_name: post-db
+    restart: always
+    environment:
+      POSTGRES_DB: posts
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_PORT: 5406
+    volumes:
+      - ./.containers/post_db_data:/var/lib/postgresql/18/main
+    ports:
+      - "5406:5406"
+
+  frontend:
+    image: ghcr.io/s6-instaclone/instaclone_fe:latest
+    container_name: frontend
+    ports:
+      - "3000:80"
+
+volumes:
+  azurite_data:
