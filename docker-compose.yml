@@ -1,6 +1,7 @@
 services:
   apiGateway:
     image: ghcr.io/s6-instaclone/gateway:latest
+    pull_policy: always
     container_name: apiGateway
     ports:
       - "5000:5000"
@@ -49,6 +50,7 @@ services:
 
   accountService:
     image: ghcr.io/s6-instaclone/accountservice:latest
+    pull_policy: always
     container_name: accountService
     depends_on:
       account-db:
@@ -78,6 +80,7 @@ services:
 
   postService:
     image: ghcr.io/s6-instaclone/postservice:latest
+    pull_policy: always
     container_name: postService
     depends_on:
       post-db:
@@ -111,6 +114,7 @@ services:
 
   frontend:
     image: ghcr.io/s6-instaclone/instaclone_fe:latest
+    pull_policy: always
     container_name: frontend
     ports:
       - "3000:80"
