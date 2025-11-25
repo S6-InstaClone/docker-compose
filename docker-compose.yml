@@ -1,10 +1,11 @@
-
 services:
   apiGateway:
     image: ghcr.io/s6-instaclone/gateway:latest
     container_name: apiGateway
     ports:
       - "5000:5000"
+    depends_on:
+      - keycloak
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
@@ -50,45 +51,63 @@ services:
     image: ghcr.io/s6-instaclone/accountservice:latest
     container_name: accountService
     depends_on:
-      - account-db
+      account-db:
+        condition: service_healthy
     ports:
       - "5005:5005"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=account-db;Port=5432;Database=accounts;Username=admin;Password=admin
+
   account-db:
-    image: postgres:18
+    image: postgres:16
     container_name: account-db
     restart: always
     environment:
       POSTGRES_DB: accounts
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
-      POSTGRES_PORT: 5405
     volumes:
-      - ./.containers/account_db_data:/var/lib/postgresql/18/main
+      - ./.containers/account_db_data:/var/lib/postgresql/data
     ports:
-      - "5405:5405"
+      - "5405:5432"  # Host port 5405 maps to container port 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d accounts"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   postService:
     image: ghcr.io/s6-instaclone/postservice:latest
     container_name: postService
     depends_on:
-      - post-db
+      post-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
     ports:
       - "5006:5006"
-    env_file:
-      - ./env/.auth.env
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=post-db;Port=5432;Database=posts;Username=admin;Password=admin
+      - BlobStorage__ConnectionString=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=devstoreaccount1key;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      - BlobStorage__ContainerName=postimages
+
   post-db:
-    image: postgres:18
+    image: postgres:16
     container_name: post-db
     restart: always
     environment:
       POSTGRES_DB: posts
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
-      POSTGRES_PORT: 5406
     volumes:
-      - ./.containers/post_db_data:/var/lib/postgresql/18/main
+      - ./.containers/post_db_data:/var/lib/postgresql/data
     ports:
-      - "5406:5406"
+      - "5406:5432"  # Host port 5406 maps to container port 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d posts"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   frontend:
     image: ghcr.io/s6-instaclone/instaclone_fe:latest
