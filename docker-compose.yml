@@ -3,6 +3,11 @@ services:
     image: ghcr.io/s6-instaclone/gateway:latest
     pull_policy: always
     container_name: apiGateway
+    hostname: apiGateway
+    restart: always
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - ASPNETCORE_URLS=http://0.0.0.0:5000
     ports:
       - "5000:5000"
     depends_on:
@@ -15,11 +20,9 @@ services:
       - "10000:10000" # Blob service
       - "10001:10001" # Queue service
       - "10002:10002" # Table service
-    environment:
-      - AZURITE_ACCOUNTS=devstoreaccount1:devstoreaccount1key
     volumes:
       - azurite_data:/data
-    command: "azurite-blob --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0"
+    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0"
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -52,13 +55,29 @@ services:
     image: ghcr.io/s6-instaclone/accountservice:latest
     pull_policy: always
     container_name: accountService
+    hostname: accountService
+    restart: always
     depends_on:
       account-db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      keycloak:
+        condition: service_started
     ports:
       - "5005:5005"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - ASPNETCORE_URLS=http://0.0.0.0:5005
       - ConnectionStrings__DefaultConnection=Host=account-db;Port=5432;Database=accounts;Username=admin;Password=admin
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=admin
+      - RabbitMQ__Password=admin
+      - Keycloak__AdminUrl=http://keycloak:8080
+      - Keycloak__Realm=instaclone
+      - Keycloak__AdminClientId=admin-cli
+      - Keycloak__AdminUsername=admin
+      - Keycloak__AdminPassword=admin
 
   account-db:
     image: postgres:16
@@ -71,28 +90,38 @@ services:
     volumes:
       - ./.containers/account_db_data:/var/lib/postgresql/data
     ports:
-      - "5405:5432"  # Host port 5405 maps to container port 5432
+      - "5405:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d accounts"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d accounts && psql -U admin -d accounts -c 'SELECT 1'"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 60s
 
   postService:
     image: ghcr.io/s6-instaclone/postservice:latest
     pull_policy: always
     container_name: postService
+    hostname: postService
+    restart: always
     depends_on:
       post-db:
         condition: service_healthy
       rabbitmq:
         condition: service_started
+      azurite:
+        condition: service_started
     ports:
       - "5006:5006"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - ASPNETCORE_URLS=http://0.0.0.0:5006
       - ConnectionStrings__DefaultConnection=Host=post-db;Port=5432;Database=posts;Username=admin;Password=admin
-      - BlobStorage__ConnectionString=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=devstoreaccount1key;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      - BlobStorage__ConnectionString=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
       - BlobStorage__ContainerName=postimages
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=admin
+      - RabbitMQ__Password=admin
 
   post-db:
     image: postgres:16
@@ -105,12 +134,13 @@ services:
     volumes:
       - ./.containers/post_db_data:/var/lib/postgresql/data
     ports:
-      - "5406:5432"  # Host port 5406 maps to container port 5432
+      - "5406:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d posts"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d posts && psql -U admin -d posts -c 'SELECT 1'"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 60s
 
   frontend:
     image: ghcr.io/s6-instaclone/instaclone_fe:latest
