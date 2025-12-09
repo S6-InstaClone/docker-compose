@@ -1,41 +1,11 @@
 # InstaClone Monitoring & Load Testing Setup
 
-## Quick Start
-
-### 1. Extract the monitoring files
-Unzip `instaclone-monitoring.zip` into your project root as a `monitoring/` folder.
-
-### 2. Add metrics to your ASP.NET services
-
-**Add NuGet packages** to each service (AccountService, PostService, APIGateway):
-```bash
-dotnet add package OpenTelemetry.Exporter.Prometheus.AspNetCore --version 1.7.0-rc.1
-dotnet add package OpenTelemetry.Extensions.Hosting --version 1.7.0
-dotnet add package OpenTelemetry.Instrumentation.AspNetCore --version 1.7.0
-dotnet add package OpenTelemetry.Instrumentation.Http --version 1.7.0
-```
-
-**Update Program.cs** in each service (see METRICS_SETUP.md for full code):
-```csharp
-// Add after builder creation
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService("YourServiceName"))
-    .WithMetrics(metrics => {
-        metrics.AddAspNetCoreInstrumentation()
-               .AddHttpClientInstrumentation()
-               .AddPrometheusExporter();
-    });
-
-// Add after app creation
-app.UseOpenTelemetryPrometheusScrapingEndpoint();
-```
-
-### 3. Start the monitoring stack
+### 1. Start the monitoring stack
 ```bash
 docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
 ```
 
-### 4. Access the tools
+### 2. Access the tools
 - **Grafana**: http://localhost:3001 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **RabbitMQ**: http://localhost:15672 (admin/admin)
