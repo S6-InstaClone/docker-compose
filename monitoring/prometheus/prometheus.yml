@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # API Gateway metrics
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['apiGateway:5000']
+    metrics_path: /metrics
+
+  # Account Service metrics
+  - job_name: 'account-service'
+    static_configs:
+      - targets: ['accountService:5005']
+    metrics_path: /metrics
+
+  # Post Service metrics
+  - job_name: 'post-service'
+    static_configs:
+      - targets: ['postService:5006']
+    metrics_path: /metrics
+
+  # RabbitMQ metrics (if you add the prometheus plugin)
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+
+  # PostgreSQL metrics (via postgres_exporter)
+  - job_name: 'postgres-account'
+    static_configs:
+      - targets: ['postgres-exporter-account:9187']
+
+  - job_name: 'postgres-post'
+    static_configs:
+      - targets: ['postgres-exporter-post:9187']

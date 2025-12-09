@@ -1,0 +1,82 @@
+# docker-compose.monitoring.yml
+# Run with: docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+
+services:
+  # Prometheus - metrics collection
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  # Grafana - visualization
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # PostgreSQL Exporter for Account DB
+  postgres-exporter-account:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter-account
+    environment:
+      DATA_SOURCE_NAME: "postgresql://admin:admin@account-db:5432/accounts?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      account-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # PostgreSQL Exporter for Post DB
+  postgres-exporter-post:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: postgres-exporter-post
+    environment:
+      DATA_SOURCE_NAME: "postgresql://admin:admin@post-db:5432/posts?sslmode=disable"
+    ports:
+      - "9188:9187"
+    depends_on:
+      post-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # k6 for load testing (run manually or via CI)
+  k6:
+    image: grafana/k6:0.47.0
+    container_name: k6
+    volumes:
+      - ./monitoring/k6:/scripts:ro
+    environment:
+      - API_GATEWAY_URL=http://apiGateway:5000
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=instaclone
+      - KEYCLOAK_CLIENT_ID=public-client
+    # Run with: docker-compose exec k6 k6 run /scripts/load-test.js
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+volumes:
+  prometheus_data:
+  grafana_data:

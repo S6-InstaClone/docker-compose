@@ -17,9 +17,9 @@ services:
     image: mcr.microsoft.com/azure-storage/azurite
     container_name: azurite
     ports:
-      - "10000:10000" # Blob service
-      - "10001:10001" # Queue service
-      - "10002:10002" # Table service
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
     volumes:
       - azurite_data:/data
     command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0"
@@ -29,14 +29,14 @@ services:
     container_name: rabbitmq
     restart: always
     ports:
-      - "5672:5672"   # AMQP for your apps
-      - "15672:15672" # Web UI
+      - "5672:5672"
+      - "15672:15672"
     volumes:
       - ./.containers/queue/data/:/var/lib/rabbitmq
       - ./.containers/queue/log/:/var/log/rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
 
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
@@ -44,8 +44,8 @@ services:
     command: start-dev
     environment:
       - KC_HEALTH_ENABLED=true
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
     volumes:
       - ./.containers/identity:/opt/keycloak/data
     ports:
@@ -69,15 +69,22 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Docker
       - ASPNETCORE_URLS=http://0.0.0.0:5005
-      - ConnectionStrings__DefaultConnection=Host=account-db;Port=5432;Database=accounts;Username=admin;Password=admin
-      - RabbitMQ__Host=rabbitmq
-      - RabbitMQ__Username=admin
-      - RabbitMQ__Password=admin
-      - Keycloak__AdminUrl=http://keycloak:8080
-      - Keycloak__Realm=instaclone
-      - Keycloak__AdminClientId=admin-cli
-      - Keycloak__AdminUsername=admin
-      - Keycloak__AdminPassword=admin
+      # Database
+      - DB_HOST=account-db
+      - DB_PORT=5432
+      - DB_NAME=accounts
+      - DB_USER=${ACCOUNT_DB_USER}
+      - DB_PASSWORD=${ACCOUNT_DB_PASSWORD}
+      # RabbitMQ
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      # Keycloak
+      - KEYCLOAK_ADMIN_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=instaclone
+      - KEYCLOAK_ADMIN_CLIENT_ID=admin-cli
+      - KEYCLOAK_ADMIN_USERNAME=${KEYCLOAK_ADMIN_USER}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
 
   account-db:
     image: postgres:16
@@ -85,14 +92,14 @@ services:
     restart: always
     environment:
       POSTGRES_DB: accounts
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: ${ACCOUNT_DB_USER}
+      POSTGRES_PASSWORD: ${ACCOUNT_DB_PASSWORD}
     volumes:
       - ./.containers/account_db_data:/var/lib/postgresql/data
     ports:
       - "5405:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d accounts && psql -U admin -d accounts -c 'SELECT 1'"]
+      test: ["CMD-SHELL", "pg_isready -U ${ACCOUNT_DB_USER} -d accounts && psql -U ${ACCOUNT_DB_USER} -d accounts -c 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -116,12 +123,21 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Docker
       - ASPNETCORE_URLS=http://0.0.0.0:5006
-      - ConnectionStrings__DefaultConnection=Host=post-db;Port=5432;Database=posts;Username=admin;Password=admin
-      - BlobStorage__ConnectionString=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
-      - BlobStorage__ContainerName=postimages
-      - RabbitMQ__Host=rabbitmq
-      - RabbitMQ__Username=admin
-      - RabbitMQ__Password=admin
+      # Database
+      - DB_HOST=post-db
+      - DB_PORT=5432
+      - DB_NAME=posts
+      - DB_USER=${POST_DB_USER}
+      - DB_PASSWORD=${POST_DB_PASSWORD}
+      # Blob Storage
+      - BLOB_CONNECTION_STRING=${BLOB_CONNECTION_STRING}
+      - BLOB_CONTAINER_NAME=${BLOB_CONTAINER_NAME}
+      # RabbitMQ
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      # CORS
+      - CORS_ORIGINS=${CORS_ORIGINS}
 
   post-db:
     image: postgres:16
@@ -129,14 +145,14 @@ services:
     restart: always
     environment:
       POSTGRES_DB: posts
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: ${POST_DB_USER}
+      POSTGRES_PASSWORD: ${POST_DB_PASSWORD}
     volumes:
       - ./.containers/post_db_data:/var/lib/postgresql/data
     ports:
       - "5406:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d posts && psql -U admin -d posts -c 'SELECT 1'"]
+      test: ["CMD-SHELL", "pg_isready -U ${POST_DB_USER} -d posts && psql -U ${POST_DB_USER} -d posts -c 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 10
